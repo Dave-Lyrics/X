@@ -8,18 +8,20 @@ import { MdPassword } from "react-icons/md";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { toast } from "react-hot-toast";
-
 const LoginPage = () => {
 	const [formData, setFormData] = useState({
 		username: "",
 		password: "",
 	});
-
 	const queryClient = useQueryClient();
 
-	const { mutate:loginMutation, isPending, isError, error } = useMutation({
-		mutationFn: async ({username, password}) => {
+	const {
+		mutate: loginMutation,
+		isPending,
+		isError,
+		error,
+	} = useMutation({
+		mutationFn: async ({ username, password }) => {
 			try {
 				const res = await fetch("/api/auth/login", {
 					method: "POST",
@@ -41,8 +43,7 @@ const LoginPage = () => {
 		onSuccess: () => {
 			// refetch the authUser
 			queryClient.invalidateQueries({ queryKey: ["authUser"] });
-			toast.success("Logged in successfully");
-		}
+		},
 	});
 
 	const handleSubmit = (e) => {
@@ -89,9 +90,7 @@ const LoginPage = () => {
 					<button className='btn rounded-full btn-primary text-white'>
 						{isPending ? "Loading..." : "Login"}
 					</button>
-					{isError && <p className='text-red-500'>
-						{error.message}
-						</p>}
+					{isError && <p className='text-red-500'>{error.message}</p>}
 				</form>
 				<div className='flex flex-col gap-2 mt-4'>
 					<p className='text-white text-lg'>{"Don't"} have an account?</p>
