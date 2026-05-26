@@ -13,98 +13,336 @@ import { formatPostDate } from "../../utils/date";
 
 const Post = ({ post }) => {
 	const [comment, setComment] = useState("");
-	const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+
+	const { data: authUser } = useQuery({
+		queryKey: ["authUser"],
+	});
+
 	const queryClient = useQueryClient();
+
 	const postOwner = post.user;
+
 	const isLiked = post.likes.includes(authUser._id);
+	const isSaved = authUser.savedPosts?.includes(post._id);
+	const isReposted = post.reposts?.includes(authUser._id);
 
 	const isMyPost = authUser._id === post.user._id;
 
 	const formattedDate = formatPostDate(post.createdAt);
 
+	// DELETE POST
 	const { mutate: deletePost, isPending: isDeleting } = useMutation({
 		mutationFn: async () => {
-			try {
-				const res = await fetch(`/api/posts/${post._id}`, {
-					method: "DELETE",
-				});
-				const data = await res.json();
+			const res = await fetch(`/api/posts/${post._id}`, {
+				method: "DELETE",
+			});
 
-				if (!res.ok) {
-					throw new Error(data.error || "Something went wrong");
-				}
-				return data;
-			} catch (error) {
-				throw new Error(error);
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Something went wrong");
 			}
+
+			return data;
 		},
+
 		onSuccess: () => {
 			toast.success("Post deleted successfully");
-			queryClient.invalidateQueries({ queryKey: ["posts"] });
-		},
-	});
 
-	const { mutate: likePost, isPending: isLiking } = useMutation({
-		mutationFn: async () => {
-			try {
-				const res = await fetch(`/api/posts/like/${post._id}`, {
-					method: "POST",
-				});
-				const data = await res.json();
-				if (!res.ok) {
-					throw new Error(data.error || "Something went wrong");
-				}
-				return data;
-			} catch (error) {
-				throw new Error(error);
-			}
-		},
-		onSuccess: (updatedLikes) => {
-			// this is not the best UX, bc it will refetch all posts
-			// queryClient.invalidateQueries({ queryKey: ["posts"] });
-
-			// instead, update the cache directly for that post
-			queryClient.setQueryData(["posts"], (oldData) => {
-				return oldData.map((p) => {
-					if (p._id === post._id) {
-						return { ...p, likes: updatedLikes };
-					}
-					return p;
-				});
+			queryClient.invalidateQueries({
+				queryKey: ["posts"],
 			});
 		},
-		onError: (error) => {
-			toast.error(error.message);
+	});
+
+	// LIKE POST
+	const { mutate: likePost } = useMutation({
+		mutationFn: async () => {
+			const res = await fetch(`/api/posts/like/${post._id}`, {
+				method: "POST",
+			});
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Something went wrong");
+			}
+
+			return data;
+		},
+
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: ["posts"],
+			});
+
+			const previousPosts = queryClient.getQueriesData({
+				queryKey: ["posts"],
+			});
+
+			queryClient.setQueriesData(
+				{ queryKey: ["posts"] },
+				(oldData) => {
+					return (oldData || []).map((p) => {
+						if (p._id !== post._id) return p;
+
+						const alreadyLiked = p.likes.includes(authUser._id);
+
+						return {
+							...p,
+							likes: alreadyLiked
+								? p.likes.filter(
+										(id) => id !== authUser._id
+								  )
+								: [...p.likes, authUser._id],
+						};
+					});
+				}
+			);
+
+			return { previousPosts };
+		},
+
+		onError: (err, variables, context) => {
+			context?.previousPosts?.forEach(([queryKey, data]) => {
+				queryClient.setQueryData(queryKey, data);
+			});
+
+			toast.error(err.message);
 		},
 	});
 
-	const { mutate: commentPost, isPending: isCommenting } = useMutation({
-		mutationFn: async () => {
-			try {
-				const res = await fetch(`/api/posts/comment/${post._id}`, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({ text: comment }),
-				});
+	// COMMENT POST
+	const { mutate: commentPost, isPending: isCommenting } =
+		useMutation({
+			mutationFn: async () => {
+				const res = await fetch(
+					`/api/posts/comment/${post._id}`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							text: comment,
+						}),
+					}
+				);
+
 				const data = await res.json();
 
 				if (!res.ok) {
-					throw new Error(data.error || "Something went wrong");
+					throw new Error(
+						data.error || "Something went wrong"
+					);
 				}
+
 				return data;
-			} catch (error) {
-				throw new Error(error);
+			},
+
+			onSuccess: () => {
+				toast.success("Comment posted successfully");
+
+				setComment("");
+
+				queryClient.invalidateQueries({
+					queryKey: ["posts"],
+				});
+			},
+
+			onError: (error) => {
+				toast.error(error.message);
+			},
+		});
+
+	// LIKE COMMENT
+	const { mutate: likeComment } = useMutation({
+		mutationFn: async ({ postId, commentId }) => {
+			const res = await fetch(
+				`/api/posts/comment/like/${postId}/${commentId}`,
+				{
+					method: "POST",
+				}
+			);
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Something went wrong");
 			}
+
+			return data;
 		},
-		onSuccess: () => {
-			toast.success("Comment posted successfully");
-			setComment("");
-			queryClient.invalidateQueries({ queryKey: ["posts"] });
+
+		onMutate: async ({ commentId }) => {
+			await queryClient.cancelQueries({
+				queryKey: ["posts"],
+			});
+
+			const previousPosts = queryClient.getQueriesData({
+				queryKey: ["posts"],
+			});
+
+			queryClient.setQueriesData(
+				{ queryKey: ["posts"] },
+				(oldData) => {
+					return (oldData || []).map((p) => {
+						if (p._id !== post._id) return p;
+
+						return {
+							...p,
+							comments: p.comments.map((c) => {
+								if (c._id !== commentId) return c;
+
+								const alreadyLiked =
+									c.likes.includes(authUser._id);
+
+								return {
+									...c,
+									likes: alreadyLiked
+										? c.likes.filter(
+												(id) =>
+													id !== authUser._id
+										  )
+										: [
+												...c.likes,
+												authUser._id,
+										  ],
+								};
+							}),
+						};
+					});
+				}
+			);
+
+			return { previousPosts };
 		},
-		onError: (error) => {
-			toast.error(error.message);
+
+		onError: (err, variables, context) => {
+			context?.previousPosts?.forEach(([queryKey, data]) => {
+				queryClient.setQueryData(queryKey, data);
+			});
+
+			toast.error(err.message);
+		},
+	});
+
+	// SAVE POST
+	const { mutate: savePost } = useMutation({
+		mutationFn: async () => {
+			const res = await fetch(
+				`/api/posts/save/${post._id}`,
+				{
+					method: "POST",
+				}
+			);
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Something went wrong");
+			}
+
+			return data;
+		},
+
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: ["authUser"],
+			});
+
+			const previousUser = queryClient.getQueryData([
+				"authUser",
+			]);
+
+			queryClient.setQueryData(
+				["authUser"],
+				(oldData) => {
+					const alreadySaved =
+						oldData.savedPosts?.includes(post._id);
+
+					return {
+						...oldData,
+						savedPosts: alreadySaved
+							? oldData.savedPosts.filter(
+									(id) => id !== post._id
+							  )
+							: [...oldData.savedPosts, post._id],
+					};
+				}
+			);
+
+			return { previousUser };
+		},
+
+		onError: (err, variables, context) => {
+			queryClient.setQueryData(
+				["authUser"],
+				context.previousUser
+			);
+
+			toast.error(err.message);
+		},
+	});
+
+	// REPOST POST
+	const { mutate: repostPost } = useMutation({
+		mutationFn: async () => {
+			const res = await fetch(
+				`/api/posts/repost/${post._id}`,
+				{
+					method: "POST",
+				}
+			);
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Something went wrong");
+			}
+
+			return data;
+		},
+
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: ["posts"],
+			});
+
+			const previousPosts = queryClient.getQueriesData({
+				queryKey: ["posts"],
+			});
+
+			queryClient.setQueriesData(
+				{ queryKey: ["posts"] },
+				(oldData) => {
+					return (oldData || []).map((p) => {
+						if (p._id !== post._id) return p;
+
+						const alreadyReposted =
+							p.reposts.includes(authUser._id);
+
+						return {
+							...p,
+							reposts: alreadyReposted
+								? p.reposts.filter(
+										(id) => id !== authUser._id
+								  )
+								: [...p.reposts, authUser._id],
+						};
+					});
+				}
+			);
+
+			return { previousPosts };
+		},
+
+		onError: (err, variables, context) => {
+			context?.previousPosts?.forEach(([queryKey, data]) => {
+				queryClient.setQueryData(queryKey, data);
+			});
+
+			toast.error(err.message);
 		},
 	});
 
@@ -114,45 +352,83 @@ const Post = ({ post }) => {
 
 	const handlePostComment = (e) => {
 		e.preventDefault();
+
 		if (isCommenting) return;
+
 		commentPost();
 	};
 
 	const handleLikePost = () => {
-		if (isLiking) return;
 		likePost();
+	};
+
+	const handleRepostPost = () => {
+		if (post.user._id === authUser._id) {
+			return toast.error(
+				"You can't repost your own post"
+			);
+		}
+
+		repostPost();
 	};
 
 	return (
 		<>
 			<div className='flex gap-2 items-start p-4 border-b border-gray-700'>
 				<div className='avatar'>
-					<Link to={`/profile/${postOwner.username}`} className='w-8 rounded-full overflow-hidden'>
-						<img src={postOwner.profileImg || "/avatar-placeholder.png"} />
+					<Link
+						to={`/profile/${postOwner.username}`}
+						className='w-8 rounded-full overflow-hidden'
+					>
+						<img
+							src={
+								postOwner.profileImg ||
+								"/avatar-placeholder.png"
+							}
+						/>
 					</Link>
 				</div>
+
 				<div className='flex flex-col flex-1'>
 					<div className='flex gap-2 items-center'>
-						<Link to={`/profile/${postOwner.username}`} className='font-bold'>
+						<Link
+							to={`/profile/${postOwner.username}`}
+							className='font-bold'
+						>
 							{postOwner.fullName}
 						</Link>
+
 						<span className='text-gray-700 flex gap-1 text-sm'>
-							<Link to={`/profile/${postOwner.username}`}>@{postOwner.username}</Link>
+							<Link
+								to={`/profile/${postOwner.username}`}
+							>
+								@{postOwner.username}
+							</Link>
+
 							<span>·</span>
+
 							<span>{formattedDate}</span>
 						</span>
+
 						{isMyPost && (
 							<span className='flex justify-end flex-1'>
 								{!isDeleting && (
-									<FaTrash className='cursor-pointer hover:text-red-500' onClick={handleDeletePost} />
+									<FaTrash
+										className='cursor-pointer hover:text-red-500'
+										onClick={handleDeletePost}
+									/>
 								)}
 
-								{isDeleting && <LoadingSpinner size='sm' />}
+								{isDeleting && (
+									<LoadingSpinner size='sm' />
+								)}
 							</span>
 						)}
 					</div>
+
 					<div className='flex flex-col gap-3 overflow-hidden'>
 						<span>{post.text}</span>
+
 						{post.img && (
 							<img
 								src={post.img}
@@ -161,91 +437,226 @@ const Post = ({ post }) => {
 							/>
 						)}
 					</div>
+
 					<div className='flex justify-between mt-3'>
 						<div className='flex gap-4 items-center w-2/3 justify-between'>
+							{/* COMMENT BUTTON */}
 							<div
 								className='flex gap-1 items-center cursor-pointer group'
-								onClick={() => document.getElementById("comments_modal" + post._id).showModal()}
+								onClick={() =>
+									document
+										.getElementById(
+											"comments_modal" + post._id
+										)
+										.showModal()
+								}
 							>
-								<FaRegComment className='w-4 h-4  text-slate-500 group-hover:text-sky-400' />
+								<FaRegComment className='w-4 h-4 text-slate-500 group-hover:text-sky-400' />
+
 								<span className='text-sm text-slate-500 group-hover:text-sky-400'>
 									{post.comments.length}
 								</span>
 							</div>
-							{/* We're using Modal Component from DaisyUI */}
-							<dialog id={`comments_modal${post._id}`} className='modal border-none outline-none'>
+
+							{/* COMMENTS MODAL */}
+							<dialog
+								id={`comments_modal${post._id}`}
+								className='modal border-none outline-none'
+							>
 								<div className='modal-box rounded border border-gray-600'>
-									<h3 className='font-bold text-lg mb-4'>COMMENTS</h3>
+									<h3 className='font-bold text-lg mb-4'>
+										COMMENTS
+									</h3>
+
 									<div className='flex flex-col gap-3 max-h-60 overflow-auto'>
 										{post.comments.length === 0 && (
 											<p className='text-sm text-slate-500'>
-												No comments yet 🤔 Be the first one 😉
+												No comments yet 🤔
 											</p>
 										)}
-										{post.comments.map((comment) => (
-											<div key={comment._id} className='flex gap-2 items-start'>
-												<div className='avatar'>
-													<div className='w-8 rounded-full'>
-														<img
-															src={comment.user.profileImg || "/avatar-placeholder.png"}
-														/>
+
+										{post.comments.map((comment) => {
+											const isCommentLiked =
+												comment.likes?.includes(
+													authUser._id
+												);
+
+											return (
+												<div
+													key={comment._id}
+													className='flex gap-2 items-start'
+												>
+													<div className='avatar'>
+														<div className='w-8 rounded-full'>
+															<img
+																src={
+																	comment.user
+																		.profileImg ||
+																	"/avatar-placeholder.png"
+																}
+															/>
+														</div>
+													</div>
+
+													<div className='flex flex-col flex-1'>
+														<div className='flex items-center justify-between'>
+															<div className='flex items-center gap-1'>
+																<span className='font-bold'>
+																	{
+																		comment
+																			.user
+																			.fullName
+																	}
+																</span>
+
+																<span className='text-gray-700 text-sm'>
+																	@
+																	{
+																		comment
+																			.user
+																			.username
+																	}
+																</span>
+															</div>
+
+															<div
+																className='flex items-center gap-1 cursor-pointer group'
+																onClick={() =>
+																	likeComment(
+																		{
+																			postId:
+																				post._id,
+																			commentId:
+																				comment._id,
+																		}
+																	)
+																}
+															>
+																<FaRegHeart
+																	className={`w-4 h-4 ${
+																		isCommentLiked
+																			? "text-pink-500"
+																			: "text-slate-500 group-hover:text-pink-500"
+																	}`}
+																/>
+
+																<span
+																	className={`text-xs ${
+																		isCommentLiked
+																			? "text-pink-500"
+																			: "text-slate-500"
+																	}`}
+																>
+																	{
+																		comment
+																			.likes
+																			?.length
+																	}
+																</span>
+															</div>
+														</div>
+
+														<div className='text-sm'>
+															{comment.text}
+														</div>
 													</div>
 												</div>
-												<div className='flex flex-col'>
-													<div className='flex items-center gap-1'>
-														<span className='font-bold'>{comment.user.fullName}</span>
-														<span className='text-gray-700 text-sm'>
-															@{comment.user.username}
-														</span>
-													</div>
-													<div className='text-sm'>{comment.text}</div>
-												</div>
-											</div>
-										))}
+											);
+										})}
 									</div>
+
 									<form
 										className='flex gap-2 items-center mt-4 border-t border-gray-600 pt-2'
 										onSubmit={handlePostComment}
 									>
 										<textarea
-											className='textarea w-full p-1 rounded text-md resize-none border focus:outline-none  border-gray-800'
+											className='textarea w-full p-1 rounded text-md resize-none border focus:outline-none border-gray-800'
 											placeholder='Add a comment...'
 											value={comment}
-											onChange={(e) => setComment(e.target.value)}
+											onChange={(e) =>
+												setComment(
+													e.target.value
+												)
+											}
 										/>
+
 										<button className='btn btn-primary rounded-full btn-sm text-white px-4'>
-											{isCommenting ? <LoadingSpinner size='md' /> : "Post"}
+											{isCommenting
+												? "Posting..."
+												: "Post"}
 										</button>
 									</form>
 								</div>
-								<form method='dialog' className='modal-backdrop'>
-									<button className='outline-none'>close</button>
+
+								<form
+									method='dialog'
+									className='modal-backdrop'
+								>
+									<button className='outline-none'>
+										close
+									</button>
 								</form>
 							</dialog>
-							<div className='flex gap-1 items-center group cursor-pointer'>
-								<BiRepost className='w-6 h-6  text-slate-500 group-hover:text-green-500' />
-								<span className='text-sm text-slate-500 group-hover:text-green-500'>0</span>
+
+							{/* REPOST */}
+							<div
+								className='flex gap-1 items-center group cursor-pointer'
+								onClick={handleRepostPost}
+							>
+								<BiRepost
+									className={`w-6 h-6 ${
+										isReposted
+											? "text-green-500"
+											: "text-slate-500 group-hover:text-green-500"
+									}`}
+								/>
+
+								<span
+									className={`text-sm ${
+										isReposted
+											? "text-green-500"
+											: "text-slate-500 group-hover:text-green-500"
+									}`}
+								>
+									{post.reposts?.length || 0}
+								</span>
 							</div>
-							<div className='flex gap-1 items-center group cursor-pointer' onClick={handleLikePost}>
-								{isLiking && <LoadingSpinner size='sm' />}
-								{!isLiked && !isLiking && (
+
+							{/* LIKE */}
+							<div
+								className='flex gap-1 items-center group cursor-pointer'
+								onClick={handleLikePost}
+							>
+								{!isLiked && (
 									<FaRegHeart className='w-4 h-4 cursor-pointer text-slate-500 group-hover:text-pink-500' />
 								)}
-								{isLiked && !isLiking && (
-									<FaRegHeart className='w-4 h-4 cursor-pointer text-pink-500 ' />
+
+								{isLiked && (
+									<FaRegHeart className='w-4 h-4 cursor-pointer text-pink-500' />
 								)}
 
 								<span
-									className={`text-sm  group-hover:text-pink-500 ${
-										isLiked ? "text-pink-500" : "text-slate-500"
+									className={`text-sm group-hover:text-pink-500 ${
+										isLiked
+											? "text-pink-500"
+											: "text-slate-500"
 									}`}
 								>
 									{post.likes.length}
 								</span>
 							</div>
 						</div>
+
+						{/* SAVE */}
 						<div className='flex w-1/3 justify-end gap-2 items-center'>
-							<FaRegBookmark className='w-4 h-4 text-slate-500 cursor-pointer' />
+							<FaRegBookmark
+								onClick={savePost}
+								className={`w-4 h-4 cursor-pointer ${
+									isSaved
+										? "text-primary"
+										: "text-slate-500"
+								}`}
+							/>
 						</div>
 					</div>
 				</div>
@@ -253,4 +664,5 @@ const Post = ({ post }) => {
 		</>
 	);
 };
+
 export default Post;

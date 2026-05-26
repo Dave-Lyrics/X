@@ -6,6 +6,9 @@ import Sidebar from './components/common/SideBar';
 import RightPanel from './components/common/RightPanel';
 import NotificationPage from './pages/notification/NotificationPage';
 import ProfilePage from './pages/profile/ProfilePage';
+import VerifyPage from "./pages/auth/verify/VerifyPage";
+import ForgotPasswordPage from "./pages/auth/forgot/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/auth/reset/ResetPasswordPage";
 import { Toaster } from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import LoadingSpinner from './components/common/LoadingSpinner';
@@ -45,6 +48,9 @@ function App() {
         <Route path="/" element={authUser ? <HomePage /> : <Navigate to="/login" />} />
         <Route path="/login" element={!authUser ? <LoginPage /> : <Navigate to="/" />} />
         <Route path="/signup" element={!authUser ? <SignUpPage /> : <Navigate to="/" />} />
+        <Route path="/verify" element={<VerifyPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route path="/notifications" element={authUser ? <NotificationPage /> : <Navigate to="/login" />} />
         <Route path="/profile/:username" element={authUser ? <ProfilePage /> : <Navigate to="/login" />} />
       </Routes>

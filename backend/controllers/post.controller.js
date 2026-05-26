@@ -227,3 +227,175 @@ export const getUserPosts = async (req, res) => {
 		res.status(500).json({ error: "Internal server error" });
 	}
 };
+
+export const likeUnlikeComment = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const { postId, commentId } = req.params;
+
+		const post = await Post.findById(postId);
+
+		if (!post) {
+			return res.status(404).json({ error: "Post not found" });
+		}
+
+		const comment = post.comments.id(commentId);
+
+		if (!comment) {
+			return res.status(404).json({ error: "Comment not found" });
+		}
+
+		const isLiked = comment.likes.includes(userId);
+
+		if (isLiked) {
+			// Unlike
+			comment.likes.pull(userId);
+		} else {
+			// Like
+			comment.likes.push(userId);
+
+			// Optional: create notification
+			if (comment.user.toString() !== userId.toString()) {
+				const notification = new Notification({
+					from: userId,
+					to: comment.user,
+					type: "like",
+				});
+				await notification.save();
+			}
+		}
+
+		await post.save();
+
+		res.status(200).json(comment.likes);
+	} catch (error) {
+		console.log("Error in likeUnlikeComment controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const saveUnsavePost = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const { id: postId } = req.params;
+
+		const user = await User.findById(userId);
+
+		if (!user) {
+			return res.status(404).json({ error: "User not found" });
+		}
+
+		const isSaved = user.savedPosts.includes(postId);
+
+		if (isSaved) {
+			await User.updateOne(
+				{ _id: userId },
+				{ $pull: { savedPosts: postId } }
+			);
+
+			res.status(200).json({
+				message: "Post unsaved",
+				saved: false,
+			});
+		} else {
+			await User.updateOne(
+				{ _id: userId },
+				{ $push: { savedPosts: postId } }
+			);
+
+			res.status(200).json({
+				message: "Post saved",
+				saved: true,
+			});
+		}
+	} catch (error) {
+		console.log("Error in saveUnsavePost controller:", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const getSavedPosts = async (req, res) => {
+	try {
+		const user = await User.findById(req.user._id);
+
+		const savedPosts = await Post.find({
+			_id: { $in: user.savedPosts },
+		})
+			.sort({ createdAt: -1 })
+			.populate({
+				path: "user",
+				select: "-password",
+			})
+			.populate({
+				path: "comments.user",
+				select: "-password",
+			});
+
+		res.status(200).json(savedPosts);
+	} catch (error) {
+		console.log("Error in getSavedPosts:", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+export const repostPost = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const { id: postId } = req.params;
+
+		const post = await Post.findById(postId);
+
+		if (!post) {
+			return res.status(404).json({ error: "Post not found" });
+		}
+
+		// Prevent reposting your own post
+		if (post.user.toString() === userId.toString()) {
+			return res.status(400).json({
+				error: "You can't repost your own post",
+			});
+		}
+
+		const alreadyReposted = post.reposts.includes(userId);
+
+		if (alreadyReposted) {
+			post.reposts.pull(userId);
+
+			await post.save();
+
+			return res.status(200).json(post.reposts);
+		}
+
+		post.reposts.push(userId);
+
+		await post.save();
+
+		res.status(200).json(post.reposts);
+	} catch (error) {
+		console.log("Error in repostPost:", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const getRepostedPosts = async (req, res) => {
+	try {
+		const { id: userId } = req.params;
+
+		const posts = await Post.find({
+			reposts: userId,
+		})
+			.sort({ createdAt: -1 })
+			.populate({
+				path: "user",
+				select: "-password",
+			})
+			.populate({
+				path: "comments.user",
+				select: "-password",
+			});
+
+		res.status(200).json(posts);
+	} catch (error) {
+		console.log("Error in getRepostedPosts:", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};

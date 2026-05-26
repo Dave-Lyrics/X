@@ -9,6 +9,11 @@ import {
 	getLikedPosts,
 	getUserPosts,
 	likeUnlikePost,
+	likeUnlikeComment,
+	saveUnsavePost,
+	getSavedPosts,
+	repostPost,
+	getRepostedPosts,
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
@@ -21,5 +26,10 @@ router.post("/create", protectRoute, createPost);
 router.post("/like/:id", protectRoute, likeUnlikePost);
 router.post("/comment/:id", protectRoute, commentOnPost);
 router.delete("/:id", protectRoute, deletePost);
+router.post("/comment/like/:postId/:commentId", protectRoute, likeUnlikeComment);
+router.post("/save/:id", protectRoute, saveUnsavePost);
+router.get("/saved/all", protectRoute, getSavedPosts);
+router.post("/repost/:id", protectRoute, repostPost);
+router.get("/reposts/:id", protectRoute, getRepostedPosts);
 
 export default router;

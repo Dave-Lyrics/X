@@ -21,6 +21,21 @@ const userSchema = new mongoose.Schema(
 			required: true,
 			unique: true,
 		},
+		deleteAt: {
+			type: Date,
+		},
+		lastLogin: {
+			type: Date,
+			default: Date.now
+		},
+		isVerified: {
+			type: Boolean,
+			default: false,
+		},
+		resetPasswordToken: String,
+		resetPasswordExpiresAt: Date,
+		verificationToken: String,
+		verificationTokenExpiresAt: Date,
 		followers: [
 			{
 				type: mongoose.Schema.Types.ObjectId,
@@ -59,10 +74,18 @@ const userSchema = new mongoose.Schema(
 				default: [],
 			},
 		],
+		savedPosts: [
+			{
+				type: mongoose.Schema.Types.ObjectId,
+				ref: "Post",
+				default: [],
+			},
+		],
 	},
 	{ timestamps: true }
 );
 
 const User = mongoose.model("User", userSchema);
+userSchema.index({ deleteAt: 1 }, { expireAfterSeconds: 0 });
 
 export default User;

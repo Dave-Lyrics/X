@@ -9,6 +9,7 @@ import { MdPassword } from "react-icons/md";
 import { MdDriveFileRenameOutline } from "react-icons/md";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 const SignUpPage = () => {
 	const [formData, setFormData] = useState({
@@ -17,6 +18,8 @@ const SignUpPage = () => {
 		fullName: "",
 		password: "",
 	});
+
+	const navigate = useNavigate();
 
 	const queryClient = useQueryClient();
 
@@ -41,11 +44,10 @@ const SignUpPage = () => {
 			}
 		},
 		onSuccess: () => {
-			toast.success("Account created successfully");
+			toast.success("Account created successfully. Check your email for verification code.");
 
-			{
-				/* Added this line below, after recording the video. I forgot to add this while recording, sorry, thx. */
-			}
+			navigate("/verify");
+
 			queryClient.invalidateQueries({ queryKey: ["authUser"] });
 		},
 	});

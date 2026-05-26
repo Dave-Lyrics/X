@@ -51,6 +51,25 @@ const ProfilePage = () => {
 		},
 	});
 
+	const { data: followData } = useQuery({
+	queryKey: ["followData", user?._id],
+	queryFn: async () => {
+		try {
+			const res = await fetch(`/api/users/follow-data/${user?._id}`);
+			const data = await res.json();
+
+			if (!res.ok) {
+				throw new Error(data.error || "Something went wrong");
+			}
+
+			return data;
+		} catch (error) {
+			throw new Error(error.message);
+		}
+	},
+	enabled: !!user?._id,
+});
+
 	const { isUpdatingProfile, updateProfile } = useUpdateUserProfile();
 
 	const isMyProfile = authUser._id === user?._id;
@@ -192,36 +211,171 @@ const ProfilePage = () => {
 									</div>
 								</div>
 								<div className='flex gap-2'>
-									<div className='flex gap-1 items-center'>
-										<span className='font-bold text-xs'>{user?.following.length}</span>
-										<span className='text-slate-500 text-xs'>Following</span>
-									</div>
-									<div className='flex gap-1 items-center'>
-										<span className='font-bold text-xs'>{user?.followers.length}</span>
-										<span className='text-slate-500 text-xs'>Followers</span>
-									</div>
+									<div
+	className='flex gap-1 items-center cursor-pointer'
+	onClick={() =>
+		document.getElementById("following_modal").showModal()
+	}
+>
+	<span className='font-bold text-xs'>
+		{user?.following.length}
+	</span>
+
+	<span className='text-slate-500 text-xs'>
+		Following
+	</span>
+</div>
+
+<div
+	className='flex gap-1 items-center cursor-pointer'
+	onClick={() =>
+		document.getElementById("followers_modal").showModal()
+	}
+>
+	<span className='font-bold text-xs'>
+		{user?.followers.length}
+	</span>
+
+	<span className='text-slate-500 text-xs'>
+		Followers
+	</span>
+</div>
 								</div>
 							</div>
-							<div className='flex w-full border-b border-gray-700 mt-4'>
-								<div
-									className='flex justify-center flex-1 p-3 hover:bg-secondary transition duration-300 relative cursor-pointer'
-									onClick={() => setFeedType("posts")}
-								>
-									Posts
-									{feedType === "posts" && (
-										<div className='absolute bottom-0 w-10 h-1 rounded-full bg-primary' />
-									)}
-								</div>
-								<div
-									className='flex justify-center flex-1 p-3 text-slate-500 hover:bg-secondary transition duration-300 relative cursor-pointer'
-									onClick={() => setFeedType("likes")}
-								>
-									Likes
-									{feedType === "likes" && (
-										<div className='absolute bottom-0 w-10  h-1 rounded-full bg-primary' />
-									)}
-								</div>
-							</div>
+					{/* FOLLOWING MODAL */}
+<dialog id='following_modal' className='modal'>
+	<div className='modal-box border border-gray-700'>
+		<h3 className='font-bold text-lg mb-4'>
+			Following
+		</h3>
+
+		<div className='flex flex-col gap-4 max-h-96 overflow-auto'>
+			{followData?.following?.length === 0 && (
+				<p className='text-sm text-slate-500'>
+					Not following anyone yet
+				</p>
+			)}
+
+			{followData?.following?.map((person) => (
+				<Link
+					to={`/profile/${person.username}`}
+					key={person._id}
+					className='flex items-center gap-3 hover:bg-secondary p-2 rounded-lg'
+				>
+					<img
+						src={
+							person.profileImg ||
+							"/avatar-placeholder.png"
+						}
+						className='w-10 h-10 rounded-full'
+					/>
+
+					<div className='flex flex-col'>
+						<span className='font-bold text-sm'>
+							{person.fullName}
+						</span>
+
+						<span className='text-slate-500 text-sm'>
+							@{person.username}
+						</span>
+					</div>
+				</Link>
+			))}
+		</div>
+	</div>
+
+	<form method='dialog' className='modal-backdrop'>
+		<button>close</button>
+	</form>
+</dialog>
+
+{/* FOLLOWERS MODAL */}
+<dialog id='followers_modal' className='modal'>
+	<div className='modal-box border border-gray-700'>
+		<h3 className='font-bold text-lg mb-4'>
+			Followers
+		</h3>
+
+		<div className='flex flex-col gap-4 max-h-96 overflow-auto'>
+			{followData?.followers?.length === 0 && (
+				<p className='text-sm text-slate-500'>
+					No followers yet
+				</p>
+			)}
+
+			{followData?.followers?.map((person) => (
+				<Link
+					to={`/profile/${person.username}`}
+					key={person._id}
+					className='flex items-center gap-3 hover:bg-secondary p-2 rounded-lg'
+				>
+					<img
+						src={
+							person.profileImg ||
+							"/avatar-placeholder.png"
+						}
+						className='w-10 h-10 rounded-full'
+					/>
+
+					<div className='flex flex-col'>
+						<span className='font-bold text-sm'>
+							{person.fullName}
+						</span>
+
+						<span className='text-slate-500 text-sm'>
+							@{person.username}
+						</span>
+					</div>
+				</Link>
+			))}
+		</div>
+	</div>
+
+	<form method='dialog' className='modal-backdrop'>
+		<button>close</button>
+	</form>
+</dialog>
+<div className='flex w-full border-b border-gray-700 mt-4 overflow-x-auto'>
+	<div
+		className='flex justify-center flex-1 p-3 hover:bg-secondary transition duration-300 relative cursor-pointer'
+		onClick={() => setFeedType("posts")}
+	>
+		Posts
+		{feedType === "posts" && (
+			<div className='absolute bottom-0 w-10 h-1 rounded-full bg-primary' />
+		)}
+	</div>
+
+	<div
+		className='flex justify-center flex-1 p-3 hover:bg-secondary transition duration-300 relative cursor-pointer'
+		onClick={() => setFeedType("likes")}
+	>
+		Likes
+		{feedType === "likes" && (
+			<div className='absolute bottom-0 w-10 h-1 rounded-full bg-primary' />
+		)}
+	</div>
+
+	<div
+		className='flex justify-center flex-1 p-3 hover:bg-secondary transition duration-300 relative cursor-pointer'
+		onClick={() => setFeedType("saved")}
+	>
+		Saved
+		{feedType === "saved" && (
+			<div className='absolute bottom-0 w-10 h-1 rounded-full bg-primary' />
+		)}
+	</div>
+
+	<div
+		className='flex justify-center flex-1 p-3 hover:bg-secondary transition duration-300 relative cursor-pointer'
+		onClick={() => setFeedType("reposts")}
+	>
+		Reposts
+		{feedType === "reposts" && (
+			<div className='absolute bottom-0 w-10 h-1 rounded-full bg-primary' />
+		)}
+	</div>
+</div>
 						</>
 					)}
 
