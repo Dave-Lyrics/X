@@ -23,7 +23,7 @@ export const signup = async (req, res) => {
 			return res.status(400).json({ error: "Email is already taken" });
 		}
 
-		if (password.length < 6) {
+		if (!password || password.length < 6) {
 			return res.status(400).json({ error: "Password must be at least 6 characters long" });
 		}
 
@@ -229,5 +229,62 @@ export const resetPassword = async (req, res) => {
 	} catch (error) {
 		console.log("Error in resetPassword ", error);
 		res.status(400).json({success: false, message: error.message});
+	}
+};
+
+export const googleAuth = async (req, res) => {
+	try {
+		const {
+			email,
+			fullName,
+			profileImg,
+		} = req.body;
+
+		let user = await User.findOne({ email });
+
+		// CREATE USER IF NOT EXISTS
+		if (!user) {
+			const baseUsername = fullName
+				.toLowerCase()
+				.replace(/\s+/g, "")
+				.slice(0, 10);
+
+			const randomUsername =
+				baseUsername +
+				Math.floor(1000 + Math.random() * 9000);
+
+			const randomPassword =
+				crypto.randomBytes(16).toString("hex");
+
+			const salt = await bcrypt.genSalt(10);
+
+			const hashedPassword =
+				await bcrypt.hash(randomPassword, salt);
+
+			user = new User({
+				email,
+				fullName,
+				username: randomUsername,
+				password: hashedPassword,
+				profileImg: profileImg || "",
+				isVerified: true,
+			});
+
+			await user.save();
+		}
+
+		generateTokenAndSetCookie(user._id, res);
+
+		res.status(200).json(user);
+
+	} catch (error) {
+		console.log(
+			"Error in googleAuth controller",
+			error.message
+		);
+
+		res.status(500).json({
+			error: "Internal Server Error",
+		});
 	}
 };

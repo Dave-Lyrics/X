@@ -13,7 +13,6 @@ const userSchema = new mongoose.Schema(
 		},
 		password: {
 			type: String,
-			required: true,
 			minLength: 6,
 		},
 		email: {
@@ -85,7 +84,7 @@ const userSchema = new mongoose.Schema(
 	{ timestamps: true }
 );
 
-const User = mongoose.model("User", userSchema);
 userSchema.index({ deleteAt: 1 }, { expireAfterSeconds: 0 });
+const User = mongoose.model("User", userSchema);
 
 export default User;

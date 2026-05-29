@@ -11,6 +11,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
+import { signInWithPopup } from "firebase/auth";
+
+import { auth, provider } from "../../../firebase/firebase";
+
 const SignUpPage = () => {
 	const [formData, setFormData] = useState({
 		email: "",
@@ -60,6 +64,48 @@ const SignUpPage = () => {
 	const handleInputChange = (e) => {
 		setFormData({ ...formData, [e.target.name]: e.target.value });
 	};
+const handleGoogleLogin = async () => {
+	try {
+		const result = await signInWithPopup(
+			auth,
+			provider
+		);
+
+		const user = result.user;
+
+		const res = await fetch(
+			"/api/auth/google",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type":
+						"application/json",
+				},
+				body: JSON.stringify({
+					email: user.email,
+					fullName: user.displayName,
+					profileImg: user.photoURL,
+				}),
+			}
+		);
+
+		const data = await res.json();
+
+		if (!res.ok) {
+			throw new Error(
+				data.error ||
+					"Google login failed"
+			);
+		}
+
+		queryClient.invalidateQueries({
+			queryKey: ["authUser"],
+		});
+
+	} catch (error) {
+		console.log(error.message);
+	}
+};
 
 	return (
 		<div className='max-w-screen-xl mx-auto flex h-screen px-10'>
@@ -126,6 +172,19 @@ const SignUpPage = () => {
 					<Link to='/login'>
 						<button className='btn rounded-full btn-primary text-white btn-outline w-full'>Sign in</button>
 					</Link>
+					<button 
+					onClick={handleGoogleLogin}
+					type='button'
+					className='flex items-center justify-center gap-3 w-full border border-[#536471] hover:bg-[#181818] text-white font-bold py-3 rounded-full transition-all duration-300'
+					>
+						<img
+						src='https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg'
+						alt='Google'
+						className='w-5 h-5'
+						/>
+
+							Continue with Google
+					</button>
 				</div>
 			</div>
 		</div>
