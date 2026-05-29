@@ -10,7 +10,6 @@ import { POSTS } from "../../utils/db/dummy";
 import { FaArrowLeft } from "react-icons/fa6";
 import { IoCalendarOutline } from "react-icons/io5";
 import { FaLink } from "react-icons/fa";
-import { MdEdit } from "react-icons/md";
 import { useQuery } from "@tanstack/react-query";
 import { formatMemberSinceDate } from "../../utils/date";
 
@@ -114,17 +113,16 @@ const ProfilePage = () => {
 							<div className='relative group/cover'>
 								<img
 									src={coverImg || user?.coverImg || "/cover.png"}
-									className='h-52 w-full object-cover'
+									className={`h-52 w-full object-cover ${
+										isMyProfile ? "cursor-pointer" : ""
+									}`}
 									alt='cover image'
+									onClick={() => {
+										if (isMyProfile) {
+											coverImgRef.current.click();
+										}
+									}}
 								/>
-								{isMyProfile && (
-									<div
-										className='absolute top-2 right-2 rounded-full p-2 bg-gray-800 bg-opacity-75 cursor-pointer opacity-0 group-hover/cover:opacity-100 transition duration-200'
-										onClick={() => coverImgRef.current.click()}
-									>
-										<MdEdit className='w-5 h-5 text-white' />
-									</div>
-								)}
 
 								<input
 									type='file'
@@ -143,15 +141,19 @@ const ProfilePage = () => {
 								{/* USER AVATAR */}
 								<div className='avatar absolute -bottom-16 left-4'>
 									<div className='w-32 rounded-full relative group/avatar'>
-										<img src={profileImg || user?.profileImg || "/avatar-placeholder.png"} />
-										<div className='absolute top-5 right-3 p-1 bg-primary rounded-full group-hover/avatar:opacity-100 opacity-0 cursor-pointer'>
-											{isMyProfile && (
-												<MdEdit
-													className='w-4 h-4 text-white'
-													onClick={() => profileImgRef.current.click()}
-												/>
-											)}
-										</div>
+										<img 
+											src={
+												profileImg ||
+												user?.profileImg ||
+												"/avatar-placeholder.png"
+											}
+											className={isMyProfile ? "cursor-pointer" : ""}
+											onClick={() => {
+												if (isMyProfile) {
+													profileImgRef.current.click();
+												}
+											}}
+										/>
 									</div>
 								</div>
 							</div>
