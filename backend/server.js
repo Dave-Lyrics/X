@@ -34,6 +34,11 @@ app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/notifications", notificationRoutes);
 
+// 🚀 ADD THESE 3 LINES HERE:
+app.get("/api/health", (req, res) => {
+	res.status(200).json({ status: "alive" });
+});
+
 if (process.env.NODE_ENV === "production") {
 	app.use(express.static(path.join(__dirname, "/frontend/dist")));
 
